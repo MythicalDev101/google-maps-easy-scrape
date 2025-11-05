@@ -62,8 +62,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // Helper: create a table row element from an item object
         function createRowFromItem(item) {
             var row = document.createElement('tr');
-                // column order: title, rating, reviewCount, phone, industry, city, address, website, instaSearch, maps link
-                ['title', 'rating', 'reviewCount', 'phone', 'industry', 'expensiveness', 'city', 'address', 'companyUrl', 'instaSearch', 'href'].forEach(function(colKey) {
+                // column order: title, closedStatus, rating, reviewCount, phone, industry, expensiveness, city, address, website, instaSearch, maps link
+                ['title', 'closedStatus', 'rating', 'reviewCount', 'phone', 'industry', 'expensiveness', 'city', 'address', 'companyUrl', 'instaSearch', 'href'].forEach(function(colKey) {
                 var cell = document.createElement('td');
 
                 // Special rendering for links
@@ -230,7 +230,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Render table header once (so it isn't re-rendered/cleared on each scrape)
         (function renderHeader() {
-            const headers = ['Title', 'Rating', 'Reviews', 'Phone', 'Industry', 'Expensiveness', 'City', 'Address', 'Website', 'Insta Search', 'Google Maps Link'];
+            const headers = ['Title', 'Closed Status', 'Rating', 'Reviews', 'Phone', 'Industry', 'Expensiveness', 'City', 'Address', 'Website', 'Insta Search', 'Google Maps Link'];
             // clear existing header row contents
             resultsTheadRow.innerHTML = '';
             headers.forEach(function(headerText) {
@@ -254,7 +254,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (!results || !results[0] || !results[0].result) return;
 
                 // Append only unique items (by href when available)
-                results[0].result.forEach(function(item) {
+                // filter out any falsy results (e.g., permanently closed places that we skipped)
+                (results[0].result || []).filter(Boolean).forEach(function(item) {
                     var uniqueKey = item.href || (item.title + '|' + item.address);
                     if (!uniqueKey) return;
                     // sanitize expensiveness before saving/display
@@ -354,6 +355,16 @@ function scrapeData() {
     return links.map(link => {
         var container = link.closest('[jsaction*="mouseover:pane"]');
         var titleText = container ? container.querySelector('.fontHeadlineSmall').textContent : '';
+        // gather a plain-text version of the container for status detection
+        var containerText = container ? (container.textContent || '') : '';
+        // Detect closed status: if permanently closed, skip (return null). If temporarily closed, mark it.
+        var closedStatus = '';
+        if (/permanently closed/i.test(containerText)) {
+            // skip permanently closed places entirely
+            return null;
+        } else if (/temporaril(?:y)? closed/i.test(containerText) || /temporarily closed/i.test(containerText)) {
+            closedStatus = 'Temporarily Closed';
+        }
         var rating = '';
         var reviewCount = '';
         var phone = '';
@@ -459,9 +470,10 @@ function scrapeData() {
         var query = titleText + (city ? ' ' + city : '') + ' Instagram';
         var instaSearch = 'https://www.google.com/search?q=' + encodeURIComponent(query);
 
-        // Return the data as an object
+        // Return the data as an object (include closedStatus)
         return {
             title: titleText,
+            closedStatus: closedStatus,
             rating: rating,
             reviewCount: reviewCount,
             phone: phone,
