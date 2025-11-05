@@ -18,7 +18,10 @@ document.addEventListener('DOMContentLoaded', function() {
             resultsTable.appendChild(resultsTbody);
         }
 
-        var filenameInput = document.getElementById('filenameInput');
+    var filenameInput = document.getElementById('filenameInput');
+    var removeChainsButton = document.getElementById('removeChainsButton');
+    // Hard-coded ignore list URL (kept out of the UI)
+    var HARDCODED_IGNORE_URL = 'https://script.google.com/macros/s/AKfycbzDotyXLGmdAtABTUbYEi6HHeS0QE6tx9Z5hkwaiisykCK1bNNegKNZYACJeSUl_J28/exec?format=text';
         var resultsTheadRow = resultsTable.querySelector('thead tr');
         if (!resultsTheadRow) {
             var thead = resultsTable.querySelector('thead') || document.createElement('thead');
@@ -28,6 +31,19 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         // Keep track of seen entries to avoid duplicates across scrapes
         var seenEntries = new Set();
+        // Ignore list (chain names). Lowercased tokens persisted under 'gmes_ignore_chains'
+        var ignoreSet = new Set();
+
+        // helper to test if a title matches any ignore token
+        function titleIsIgnored(title) {
+            if (!title) return false;
+            var t = String(title).toLowerCase();
+            for (var ig of ignoreSet) {
+                if (!ig) continue;
+                if (t === ig || t.indexOf(ig) !== -1) return true;
+            }
+            return false;
+        }
         // Stored items persisted to localStorage so the popup can be reopened
         // without losing the list
         var storedItems = [];
@@ -146,6 +162,14 @@ document.addEventListener('DOMContentLoaded', function() {
         // Render all items (clear and re-render) from an array
         function renderAllFromStoredItems(items) {
             storedItems = Array.isArray(items) ? items : [];
+            // filter out ignored items before rendering
+            try {
+                storedItems = storedItems.filter(function(it) {
+                    try { return !titleIsIgnored(it && it.title); } catch (e) { return true; }
+                });
+            } catch (e) {
+                // if anything goes wrong, fall back to original list
+            }
             // clear tbody
             while (resultsTbody.firstChild) {
                 resultsTbody.removeChild(resultsTbody.firstChild);
@@ -185,8 +209,13 @@ document.addEventListener('DOMContentLoaded', function() {
         // Load persisted items from chrome.storage.local and render them
         function loadFromStorage() {
             try {
-                chrome.storage.local.get(['gmes_results'], function(data) {
+                chrome.storage.local.get(['gmes_results', 'gmes_ignore_chains'], function(data) {
+                    var ignoreArr = Array.isArray(data.gmes_ignore_chains) ? data.gmes_ignore_chains : [];
+                    ignoreSet.clear();
+                    ignoreArr.forEach(function(s) { if (s) ignoreSet.add(String(s).toLowerCase().trim()); });
                     renderAllFromStoredItems(Array.isArray(data.gmes_results) ? data.gmes_results : []);
+                    // ensure Remove Chains button is enabled (URL is hard-coded)
+                    if (removeChainsButton) removeChainsButton.disabled = false;
                 });
             } catch (e) {
                 console.error('Failed to load stored results', e);
@@ -246,6 +275,49 @@ document.addEventListener('DOMContentLoaded', function() {
         // Load persisted items (if any) and enable buttons accordingly
         loadFromStorage();
 
+        // Remove Chains button: fetch the hard-coded ignore list, persist it, and remove matches
+        if (removeChainsButton) {
+            removeChainsButton.addEventListener('click', function() {
+                var url = HARDCODED_IGNORE_URL;
+                // show spinner inside button
+                var spinner = removeChainsButton.querySelector('.spinner');
+                if (spinner) spinner.style.display = 'inline-block';
+                removeChainsButton.disabled = true;
+                fetch(url, { method: 'GET' })
+                    .then(function(resp) { return resp.text(); })
+                    .then(function(txt) {
+                        var arr = [];
+                        try {
+                            var parsed = JSON.parse(txt);
+                            if (Array.isArray(parsed)) arr = parsed.map(function(s) { return String(s).trim(); }).filter(Boolean);
+                        } catch (e) {
+                            arr = txt.split(/\r?\n/).map(function(s) { return String(s).trim(); }).filter(Boolean);
+                        }
+
+                        var normalized = arr.map(function(s) { return String(s).toLowerCase().trim(); }).filter(Boolean);
+                        chrome.storage.local.set({ gmes_ignore_chains: normalized }, function() {
+                            ignoreSet.clear();
+                            normalized.forEach(function(s) { ignoreSet.add(s); });
+
+                            var before = storedItems.length;
+                            storedItems = storedItems.filter(function(it) { try { return !titleIsIgnored(it && it.title); } catch (e) { return true; } });
+                            var removed = before - storedItems.length;
+                            saveToStorage();
+                            renderAllFromStoredItems(storedItems);
+                            alert('Removed ' + removed + ' matching lead(s). Ignore list saved.');
+                            // hide spinner and re-enable
+                            if (spinner) spinner.style.display = 'none';
+                            removeChainsButton.disabled = false;
+                        });
+                    }).catch(function(err) {
+                        console.error('Failed to fetch ignore list', err);
+                        alert('Failed to fetch ignore list: ' + (err && err.message ? err.message : err));
+                        if (spinner) spinner.style.display = 'none';
+                        removeChainsButton.disabled = false;
+                    });
+            });
+        }
+
         actionButton.addEventListener('click', function() {
             chrome.scripting.executeScript({
                 target: {tabId: currentTab.id},
@@ -258,6 +330,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 (results[0].result || []).filter(Boolean).forEach(function(item) {
                     var uniqueKey = item.href || (item.title + '|' + item.address);
                     if (!uniqueKey) return;
+                    // skip items whose title matches the ignore list
+                    if (titleIsIgnored(item && item.title)) return;
                     // sanitize expensiveness before saving/display
                     item.expensiveness = cleanExpensiveness(item.expensiveness || '');
                     if (seenEntries.has(uniqueKey)) return; // skip duplicates

@@ -71,6 +71,26 @@ Notes: Keyboard shortcuts can vary by OS and may conflict with other system shor
 - To change dedupe rules, edit the key used when building `seenEntries` (currently `href` or `title + '|' + address`).
 - To persist across devices, swap `chrome.storage.local` to `chrome.storage.sync` with attention to quotas.
 
+Remove Chains (Ignore list)
+- The popup now includes an "Ignore List URL" input and a "Remove Chains" button. Paste an Apps Script (or any URL) that returns either a JSON array of chain names or newline-separated plain text. Example return value:
+
+  ["Subway", "McDonald's", "Starbucks"]
+
+- When clicked the extension will fetch that list, persist it locally as `gmes_ignore_chains`, remove any existing leads whose title matches any token (case-insensitive substring match), and prevent future scrapes from adding matching titles. The background scrape command also respects this ignore list.
+
+Sample minimal Google Apps Script web app that returns a JSON array (deploy as web app with access "Anyone, even anonymous" if you want unauthenticated fetch):
+
+```javascript
+function doGet(e) {
+  var chains = ["Subway", "McDonald's", "Starbucks"]; // replace or generate from a Sheet
+  return ContentService
+    .createTextOutput(JSON.stringify(chains))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+```
+
+Note: the web app must allow cross-origin fetches (Apps Script returns JSON by default and works in many cases). If your fetch is blocked by CORS, consider returning newline-delimited text or enabling proper CORS headers from the server side.
+
 ## Contributing
 
 1. Fork, edit, and create a pull request. Keep changes focused, with small commits.

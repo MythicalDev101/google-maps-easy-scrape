@@ -34,10 +34,39 @@
       background-color: #0056b3;
     }
 
+    /* disabled state - prevent hover changes when disabled */
+    .button:disabled,
+    .button[disabled] {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+
+    /* Variant buttons (user-updated class names) */
+    .button.red-btn {
+      background-color: #dc3545; /* bootstrap danger */
+    }
+    .button.red-btn:hover {
+      background-color: #c82333;
+    }
+
+    .button.darkred-btn {
+      background-color: #b02a37; /* darker red */
+    }
+    .button.darkred-btn:hover {
+      background-color: #8a1f2a;
+    }
+
+    .button.black-btn {
+      background-color: #343a40; /* dark/black */
+    }
+    .button.black-btn:hover {
+      background-color: #1f2326;
+    }
+
     .input {
       padding: 8px 15px;
       margin-right: 10px;
-      border: 1px solid #ddd;
+      border: 1px solid #c2c2c2;
       border-radius: 20px;
       font-family: 'Poppins', sans-serif;
     }
@@ -81,6 +110,22 @@
       color: #000000;
       text-decoration: none;
     }
+    /* small inline spinner for Remove Chains button */
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.6);
+      border-top-color: #ffffff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
   </style>
 </head>
 
@@ -100,8 +145,10 @@
   </div>
   <div id="message">Checking URL...</div>
   <button id="actionButton" class="button" disabled>Scrape Google Maps</button>
-  <button id="clearListButton" class="button" style="margin-left: 10px;" disabled>Clear List</button>
-  <button id="downloadCsvButton" class="button" style="margin-left: 10px;" disabled>Download as CSV</button>
+  <button id="clearListButton" class="button red-btn" style="margin-left: 10px;" disabled>Clear List</button>
+  <button id="removeChainsButton" class="button darkred-btn" style="margin-left: 10px;">Remove Chains <span class="spinner" style="display:none" aria-hidden="true"></span></button>
+  <br>
+  <button style="margin-top: 5px;" id="downloadCsvButton" class="button black-btn" style="margin-left: 10px;" disabled>Download as CSV</button>
   <input type="text" id="filenameInput" class="input" placeholder="Enter file name" style="margin-left: 10px;" />
   <table id="resultsTable">
     <thead>

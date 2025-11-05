@@ -15,15 +15,33 @@ chrome.commands.onCommand.addListener(function(command) {
             if (!results || !results[0] || !results[0].result) return;
             var newItems = results[0].result;
 
-            chrome.storage.local.get(['gmes_results'], function(data) {
+            // Also respect an ignore list stored under 'gmes_ignore_chains' (array of strings).
+            chrome.storage.local.get(['gmes_results', 'gmes_ignore_chains'], function(data) {
                 var existing = Array.isArray(data.gmes_results) ? data.gmes_results : [];
+                var ignoreArr = Array.isArray(data.gmes_ignore_chains) ? data.gmes_ignore_chains : [];
+                var ignoreSet = new Set(ignoreArr.map(function(s){ return String(s).toLowerCase().trim(); }));
+
                 var seen = new Set(existing.map(function(it) { return it.href || (it.title + '|' + it.address); }));
                 var added = false;
 
                 newItems.forEach(function(item) {
                     var key = item.href || (item.title + '|' + item.address);
                     if (!key) return;
+                    // skip if already seen
                     if (seen.has(key)) return;
+                    // skip if title matches an ignore token (case-insensitive substring match)
+                    try {
+                        var title = item && item.title ? String(item.title).toLowerCase() : '';
+                        var ignoreMatch = false;
+                        for (var ig of ignoreSet) {
+                            if (!ig) continue;
+                            if (title === ig || title.indexOf(ig) !== -1) { ignoreMatch = true; break; }
+                        }
+                        if (ignoreMatch) return;
+                    } catch (e) {
+                        // if matching fails, proceed with adding
+                    }
+
                     seen.add(key);
                     existing.push(item);
                     added = true;
