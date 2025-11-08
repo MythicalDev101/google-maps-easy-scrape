@@ -2,7 +2,7 @@
     "manifest_version": 3,
     "name": "Google Maps Easy Scrape",
     "version": "1.0",
-    "description": "Google Maps Easy Scrape by Mike Powers",
+    "description": "Google Maps Easy Scrape by Mike Powers - Improved by Hashaam101",
     "permissions": ["activeTab", "scripting", "storage"],
     "background": {
       "service_worker": "background.js"
